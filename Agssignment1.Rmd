@@ -1,0 +1,127 @@
+Title: Assignment one for Reproducible Research
+=========================
+
+**NOTE:Before executing the code, please download the data to your working directory
+
+Step 1: Loading and preprocessing the data
+```{r loaddata, echo=TRUE}
+unziprepdata<-unzip("repdata-data-activity.zip")
+repdata<-read.csv(unziprepdata, head=T, na.strings="NA")
+head(repdata)
+str(repdata)
+```
+
+Step 2: What is the mean total number of steps taken per day?
+
+2.1: Calculate the total number of steps taken per day  
+```{r totalstepstakenperday, echo=TRUE}
+totalStepPerDay<-tapply(repdata$steps, repdata$date, sum)
+totalStepPerDay
+```
+
+2.2: Make a histogram of the total number of steps taken each day
+```{r makeahistogram, echo=TRUE}
+hist(totalStepPerDay, main="Total number of steps")
+```
+
+2.3: Calculate the mean and median of the total number of steps taken per day  
+```{r meanandmedian, echo= TRUE}
+## Mean of the total number of steps taken per day 
+mean(totalStepPerDay, na.rm=TRUE)
+## Median of the total number of steps taken per day 
+median(totalStepPerDay, na.rm=TRUE)
+```
+
+step 3: What is the average daily activity pattern?
+
+3.1: A time series plot
+```{r timeseriesplot, echo=TRUE}
+interval<-unique(repdata$interval)
+avgstepsbyinterval<-sapply(split(repdata$steps, repdata$interval), na.rm=TRUE, mean)
+plot(interval, avgstepsbyinterval, type="l", xlab="interval", ylab="Average Steps by Interval")
+```
+
+3.2: Interval has maximal avg of numbers of steps
+```{r intervalwithmaxavgsteps, echo=TRUE}
+newdata<-data.frame(interval, avgstepsbyinterval)
+colnames(newdata)<-c("interval", "avgsteps")
+newdata<-transform(newdata, interval=factor(interval))
+intervalwithmaxvagsteps<-subset(newdata, avgsteps==max(avgstepsbyinterval))
+intervalwithmaxvagsteps
+```
+
+step4: Imputing missing values
+4.1: Calculate and report the total number of missing values in the dataset
+```{r missingvalue, echo=TRUE}
+#Total number of missing values
+good<-complete.cases(repdata)
+sum(!good)
+#General summary of missing values 
+table(!good)
+#Summary for each column with missing values
+colSums(is.na(repdata))
+```
+
+4.2: Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+```{r avgstepsof5-minute, echo=TRUE}
+#A function to replace NA value with the mean for that interval
+newrepdata<-data.frame()
+for (i in interval){
+   dat<-subset(repdata, repdata$interval==i)
+   substeps <-subset(repdata$steps,repdata$interval==i)
+   dat[is.na(dat)] <- mean(substeps, na.rm=TRUE)
+   newrepdata<-rbind(newrepdata, dat)
+}
+```
+
+4.3: Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r makeidenticaldataset, echo=TRUE}
+## rearrange the data according to date and interval
+# Load "dplyr" package
+library(dplyr)
+newrepdata<-arrange(newrepdata, date, interval)
+## Compare the new and old datasets
+summary(newrepdata)
+summary(repdata)
+```
+
+4.4: Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+```{r makeahistogramwithnewdata, echo=TRUE}
+## Make a histogram of the total number of steps taken each day
+newtotalStepPerDay<-tapply(newrepdata$steps, newrepdata$date, sum)
+hist(newtotalStepPerDay, xlab= "Total Steps Per Day", main="Summary of Total Steps")
+
+## Mean of the total number of steps taken per day 
+mean(newtotalStepPerDay, na.rm=TRUE)
+
+## Median of the total number of steps taken per day 
+median(newtotalStepPerDay, na.rm=TRUE)
+```
+
+Step5: Are there differences in activity patterns between weekdays and weekends?
+```{r activitypatern, echo=TRUE}
+## Formate date
+dt<-as.Date(as.vector(newrepdata$date), "%Y-%m-%d")
+## Create a new factor variable in the dataset with two levels - "weekday" and "weekend"
+wkd<-c('Saturday', 'Sunday')
+wd<-factor((weekdays(dt) %in% wkd), 
+           levels=c(FALSE, TRUE), labels= c("Weekday", "Weekend"))
+## Add one variable into the dataset
+newrepdata$weekday<-wd
+## Remove the "date" variable
+newrepdata<-newrepdata[,-2]
+## Summarize data by "weekday" and "interval" variables
+grp_cols<-names(newrepdata)[-1]
+dots<-lapply(grp_cols, as.symbol)
+sumdata<-newrepdata %>% group_by_(.dots=dots) %>% summarize(avgstep=mean(steps))
+## transform "weekday" variable to factor
+sumdata<-transform(sumdata, weekday=factor(weekday))
+## check summarized data 
+head(sumdata)
+## Plot data with lattice package
+library(lattice)
+xyplot(avgstep ~ interval|weekday,  data=sumdata, type = "l", 
+       xlab="Interval", ylab="Average Steps by Interval", main = "Activity Patterns")
+```
+
